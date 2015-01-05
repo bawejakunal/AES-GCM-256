@@ -19,7 +19,7 @@ int encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *aad,
 {
 	EVP_CIPHER_CTX *ctx;
 
-	int len, ciphertext_len=0;
+	int len=0, ciphertext_len=0;
 
 	/* Create and initialise the context */
 	if(!(ctx = EVP_CIPHER_CTX_new()))
@@ -45,14 +45,21 @@ int encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *aad,
 	/* Provide the message to be encrypted, and obtain the encrypted output.
 	 * EVP_EncryptUpdate can be called multiple times if necessary
 	 */
-	if(1 != EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len))
-		handleErrors();
-	ciphertext_len+= len;
+	/* encrypt in block lengths of 16 bytes */
+	 while(ciphertext_len<=plaintext_len-16)
+	 {
+	 	if(1 != EVP_EncryptUpdate(ctx, ciphertext+ciphertext_len, &len, plaintext+ciphertext_len, 16))
+	 		handleErrors();
+	 	ciphertext_len+=len;
+	 }
+	 if(1 != EVP_EncryptUpdate(ctx, ciphertext+ciphertext_len, &len, plaintext+ciphertext_len, plaintext_len-ciphertext_len))
+	 	handleErrors();
+	 ciphertext_len+=len;
 
 	/* Finalise the encryption. Normally ciphertext bytes may be written at
 	 * this stage, but this does not occur in GCM mode
 	 */
-	if(1 != EVP_EncryptFinal_ex(ctx, ciphertext + len, &len)) handleErrors();
+	if(1 != EVP_EncryptFinal_ex(ctx, ciphertext + ciphertext_len, &len)) handleErrors();
 	ciphertext_len += len;
 
 	/* Get the tag */
@@ -71,7 +78,7 @@ int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *aad,
 	unsigned char *plaintext)
 {
 	EVP_CIPHER_CTX *ctx;
-	int len, plaintext_len=0, ret;
+	int len=0, plaintext_len=0, ret;
 
 	/* Create and initialise the context */
 	if(!(ctx = EVP_CIPHER_CTX_new())) 
@@ -97,9 +104,15 @@ int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *aad,
 	/* Provide the message to be decrypted, and obtain the plaintext output.
 	 * EVP_DecryptUpdate can be called multiple times if necessary
 	 */
-	if(!EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len))
-		handleErrors();
-	plaintext_len+= len;
+	 while(plaintext_len<=ciphertext_len-16)
+	 {
+	 	if(1!=EVP_DecryptUpdate(ctx, plaintext+plaintext_len, &len, ciphertext+plaintext_len, 16))
+	 		handleErrors();
+	 	plaintext_len+=len;
+	 }
+	 if(1!=EVP_DecryptUpdate(ctx, plaintext+plaintext_len, &len, ciphertext+plaintext_len, ciphertext_len-plaintext_len))
+	 		handleErrors();
+	 plaintext_len+=len;
 
 	/* Set expected tag value. Works in OpenSSL 1.0.1d and later */
 	if(!EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, 16, tag))
@@ -108,7 +121,7 @@ int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *aad,
 	/* Finalise the decryption. A positive return value indicates success,
 	 * anything else is a failure - the plaintext is not trustworthy.
 	 */
-	ret = EVP_DecryptFinal_ex(ctx, plaintext + len, &len);
+	ret = EVP_DecryptFinal_ex(ctx, plaintext + plaintext_len, &len);
 
 	/* Clean up */
 	EVP_CIPHER_CTX_free(ctx);
