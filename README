@@ -2,6 +2,8 @@ A simple implementation of AES 256 bit encryption using GCM mode.
 
 Requirements: Latest installation of openssl and libssl-dev which can be done using sudo apt-get install command in terminal
 
-Compilation: gcc AES.c -lcrypto -lssl
+Compilation: `gcc AES.c -o AES -lcrypto -lssl`
+
+Run example: `./AES < sample.in`
 
 Run the executable and proceed according to the prompts to see the demo.
